@@ -1,3 +1,30 @@
+# Check Python version (>=3.9 required)
+PYTHON_VERSION_OK := $(shell python3 -c "import sys; print(int(sys.version_info >= (3, 9)))")
+ifeq ($(PYTHON_VERSION_OK),0)
+$(error "Python >= 3.9 is required")
+endif
+
+.PHONY: clean
+clean:
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info/
+	rm -f .coverage
+	rm -f coverage.xml
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type d -name .pytest_cache -exec rm -rf {} +
+	find . -type d -name .ruff_cache -exec rm -rf {} +
+	find . -type d -name .mypy_cache -exec rm -rf {} +
+
+.PHONY: install
+install:
+	pip install uv
+	uv pip install -e .
+
+.PHONY: dev
+dev: install
+	uv pip install -e ".[dev]"
+
 .PHONY: sync
 sync:
 	uv sync --all-extras --all-packages --group dev
@@ -6,6 +33,12 @@ sync:
 format: 
 	uv run ruff format
 	uv run ruff check --fix
+
+.PHONY: check
+check:
+	uv run ruff format --check
+	uv run ruff check
+	uv run mypy .
 
 .PHONY: lint
 lint: 
@@ -21,7 +54,6 @@ tests:
 
 .PHONY: coverage
 coverage:
-	
 	uv run coverage run -m pytest
 	uv run coverage xml -o coverage.xml
 	uv run coverage report -m --fail-under=95
@@ -55,5 +87,15 @@ serve-docs:
 deploy-docs:
 	uv run mkdocs gh-deploy --force --verbose
 
-	
-	
+.PHONY: dist
+dist: clean
+	uv pip install build
+	python -m build
+
+.PHONY: check-all
+check-all: check tests coverage
+
+.PHONY: all
+all: format lint mypy tests build-docs
+
+
